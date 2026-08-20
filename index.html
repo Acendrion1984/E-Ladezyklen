@@ -1,1 +1,383 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no" />
+    <title>EV Ladehistorie</title>
+    <!-- SheetJS for .xlsx parsing -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js">
+    </script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        }
 
+        body {
+            background: #f4f6f9;
+            padding: 0 0 80px 0;
+            min-height: 100vh;
+        }
+
+        /* Header */
+        .app-header {
+            background: linear-gradient(145deg, #0b2b3d 0%, #1a4a5f 100%);
+            padding: 20px 18px 18px 18px;
+            border-radius: 0 0 28px 28px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        .header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .header-top h1 {
+            color: #fff;
+            font-size: 22px;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+        }
+        .header-top .sub {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 14px;
+            font-weight: 400;
+        }
+        .import-btn {
+            background: rgba(255, 255, 255, 0.15);
+            border: none;
+            color: #fff;
+            padding: 6px 14px;
+            border-radius: 30px;
+            font-size: 13px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            transition: background 0.2s;
+            backdrop-filter: blur(2px);
+        }
+        .import-btn:hover {
+            background: rgba(255, 255, 255, 0.25);
+        }
+        .import-btn svg {
+            width: 16px;
+            height: 16px;
+            fill: currentColor;
+        }
+        #fileInput {
+            display: none;
+        }
+
+        /* Zusammenfassung */
+        .summary-card {
+            background: #fff;
+            margin: 18px 16px 12px 16px;
+            padding: 18px 20px 16px 20px;
+            border-radius: 18px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+        }
+        .summary-label {
+            font-size: 13px;
+            font-weight: 500;
+            color: #6b7a8a;
+            letter-spacing: 0.2px;
+        }
+        .summary-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            margin-top: 4px;
+        }
+        .summary-total-kwh {
+            font-size: 32px;
+            font-weight: 700;
+            color: #0a2a3a;
+        }
+        .summary-total-kwh small {
+            font-size: 18px;
+            font-weight: 500;
+            color: #6b7a8a;
+            margin-left: 4px;
+        }
+        .summary-cost {
+            font-size: 20px;
+            font-weight: 600;
+            color: #0a2a3a;
+        }
+        .summary-cost small {
+            font-size: 14px;
+            font-weight: 400;
+            color: #6b7a8a;
+            margin-left: 2px;
+        }
+        .summary-detail {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 8px;
+            font-size: 14px;
+            color: #4a5a6a;
+            border-top: 1px solid #ecf0f3;
+            padding-top: 8px;
+        }
+        .summary-detail .free {
+            color: #34a853;
+        }
+        .summary-detail .paid {
+            color: #1a73e8;
+        }
+
+        /* Monatsnavigation & Karte */
+        .month-nav-card {
+            background: #fff;
+            margin: 0 16px 12px 16px;
+            padding: 16px 20px 14px 20px;
+            border-radius: 18px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+        }
+        .month-nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+        .month-nav .nav-btn {
+            background: none;
+            border: none;
+            font-size: 24px;
+            color: #1a4a5f;
+            cursor: pointer;
+            padding: 0 12px;
+            line-height: 1;
+            touch-action: manipulation;
+            transition: opacity 0.2s;
+        }
+        .month-nav .nav-btn:active {
+            opacity: 0.5;
+        }
+        .month-nav .month-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: #0a2a3a;
+        }
+        .month-nav .month-title .year {
+            font-weight: 400;
+            font-size: 16px;
+            color: #6b7a8a;
+        }
+
+        .month-stats {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 4px;
+            flex-wrap: wrap;
+            gap: 4px 0;
+        }
+        .month-stat-item {
+            display: flex;
+            align-items: baseline;
+            gap: 4px;
+            font-size: 14px;
+            color: #2c3e50;
+        }
+        .month-stat-item .stat-value {
+            font-weight: 700;
+            font-size: 17px;
+            color: #0a2a3a;
+        }
+        .month-stat-item .stat-label {
+            color: #8a9aa8;
+            font-size: 13px;
+        }
+        .month-session-count {
+            font-size: 13px;
+            color: #6b7a8a;
+            margin-top: 6px;
+            border-top: 1px solid #ecf0f3;
+            padding-top: 8px;
+        }
+
+        /* Balkendiagramm */
+        .chart-container {
+            margin-top: 12px;
+            border-top: 1px solid #ecf0f3;
+            padding-top: 12px;
+        }
+        .chart-title {
+            font-size: 13px;
+            font-weight: 500;
+            color: #6b7a8a;
+            margin-bottom: 6px;
+            letter-spacing: 0.2px;
+        }
+        .chart-bars-wrapper {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            padding-bottom: 6px;
+        }
+        .chart-bars {
+            display: flex;
+            align-items: flex-end;
+            height: 100px;
+            min-width: 100%;
+            gap: 2px;
+        }
+        .chart-bar {
+            flex: 1 0 0;
+            min-width: 6px;
+            border-radius: 4px 4px 0 0;
+            transition: height 0.2s;
+            min-height: 2px;
+            position: relative;
+        }
+        .chart-bar.free {
+            background: #34a853;
+        }
+        .chart-bar.paid {
+            background: #1a73e8;
+        }
+        .chart-bar.zero {
+            background: #e9ecef;
+        }
+        .chart-bar:hover {
+            opacity: 0.8;
+        }
+        .chart-labels {
+            display: flex;
+            margin-top: 4px;
+            font-size: 8px;
+            color: #8a9aa8;
+            justify-content: space-between;
+            padding: 0 2px;
+        }
+        .chart-labels span {
+            flex: 1;
+            text-align: center;
+            transform: rotate(-45deg);
+            white-space: nowrap;
+            font-size: 7px;
+        }
+
+        /* Sitzungsliste */
+        .session-list {
+            margin: 0 16px 12px 16px;
+        }
+        .session-item {
+            background: #fff;
+            border-radius: 16px;
+            padding: 14px 18px;
+            margin-bottom: 8px;
+            box-shadow: 0 1px 8px rgba(0, 0, 0, 0.04);
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            border-left: 4px solid #1a73e8;
+        }
+        .session-item.free {
+            border-left-color: #34a853;
+        }
+        .session-row1 {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .session-date {
+            font-size: 14px;
+            font-weight: 600;
+            color: #0a2a3a;
+        }
+        .session-location {
+            font-size: 14px;
+            font-weight: 500;
+            color: #1a4a5f;
+            background: #eef4f8;
+            padding: 0 12px;
+            border-radius: 20px;
+            line-height: 26px;
+        }
+        .session-row2 {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 2px;
+        }
+        .session-cost {
+            font-size: 15px;
+            font-weight: 600;
+            color: #0a2a3a;
+        }
+        .session-duration {
+            font-size: 14px;
+            color: #2c3e50;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .session-energy {
+            font-size: 15px;
+            font-weight: 600;
+            color: #0a2a3a;
+        }
+        .session-energy small {
+            font-weight: 400;
+            color: #8a9aa8;
+            font-size: 13px;
+        }
+
+        /* Leerer Zustand */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #8a9aa8;
+        }
+        .empty-state .empty-icon {
+            font-size: 48px;
+            margin-bottom: 12px;
+            opacity: 0.5;
+        }
+        .empty-state h3 {
+            font-size: 18px;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 4px;
+        }
+        .empty-state p {
+            font-size: 14px;
+        }
+        .empty-state .hint-btn {
+            margin-top: 16px;
+            background: #1a4a5f;
+            color: #fff;
+            border: none;
+            padding: 10px 28px;
+            border-radius: 40px;
+            font-size: 15px;
+            font-weight: 500;
+            cursor: pointer;
+        }
+
+        /* Floating Import */
+        .fab-import {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #1a4a5f;
+            color: #fff;
+            border: none;
+            border-radius: 60px;
+            padding: 14px 30px;
+            font-size: 16px;
+            font-weight: 600;
+            box-shadow: 0 6px 24px rgba(26, 74, 95, 0.45);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            transition: transform 0.15s, box-shadow 0.2s;
+            z-index: 20;
